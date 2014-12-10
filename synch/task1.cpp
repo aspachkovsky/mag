@@ -9,6 +9,7 @@ int main (void) {
 	int p = 4;
  
 	for (i = 0; i < p; i++) {
+		printf("Process [pid = %d]  with i = %d is forking... \n", getpid(), i);
 		int pid = fork();
   	
 		if (pid == -1) {
@@ -18,7 +19,7 @@ int main (void) {
 		
 		if (pid == 0) {
 			for (int j = 0; j < i; j++) {			
-				printf("Child [%d] says: Hello! \n", i);
+				printf("Child process [pid = %d] with i = %d says: Hello! \n", getpid(), i);
 			}	
 			return 0;
 		}
