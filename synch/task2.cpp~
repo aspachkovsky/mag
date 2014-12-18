@@ -29,6 +29,7 @@ union semun {
 #endif
  
 void client(char* message) {
+	
 	while (1) {
 		semop(sem_id, &sem_buf_wait, 1);
 		
@@ -41,7 +42,9 @@ void client(char* message) {
 	}
 }
 
+ 
 void server() {
+	
 	union semun semopts;
 	semopts.val = 1;
 	semctl(sem_id, 0, SETVAL, semopts);
