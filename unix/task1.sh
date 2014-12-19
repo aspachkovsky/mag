@@ -1,3 +1,4 @@
+#!/bin/bash
 # Unix. Task 1. Pachkovsky A.
 pwd=$(pwd)
 
