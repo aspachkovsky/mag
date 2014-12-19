@@ -59,31 +59,47 @@ fi
 
 counter=0
 parcommand=""
+
+joinpar() {
+    echo "++++"
+    joined="$1"
+    if [ $# -gt 0 ]
+    then
+        shift 1
+        args_count=$(($# - 1))
+        for j in $(seq 1 $args_count)
+        do
+            joined="$joined & $1"         
+            shift 1  
+        done    
+        joined="$joined & $1"         
+    fi
+}
+
+lines=()
+echo "${#lines[*]}"
 while read line
-do
-    if [ $counter -ge $threads ]
-        echo "$parcommand"
-        counter=0
-        parcommand=""        
-    fi
-
+do 
+#    echo "${#lines[*]}"
     if [ "$input" = true ]
-        then
-            parcommand="$parcommand $command < $line "     
-        else
-            parcommand="$parcommand $command $line "
-        fi   
+    then
+        lines=("${lines[@]}" "$command<$line")     
+    else
+        lines=("${lines[@]}" "$command $line")
+    fi   
+ #   echo "${#lines[*]}"
 
-        if [ $counter -lt $(($threads-1)) ]
-        then
-            parcommand="$parcommand & "
-        fi
-
-        counter=$(($counter+1))
+    if [ "${#lines[*]}" -gt "$threads" ]
+    then
+        joinpar ${lines[*]}
+        parcommand=$joined 
+        unset lines     
     fi
+
+    echo $parcommand
 done < $args_file
 
-
+echo "${#lines[*]}"
     
 
 
