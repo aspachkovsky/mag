@@ -13,8 +13,8 @@ mke2fs ext2fsfile.dat -F
 file ext2fsfile.dat
 
 # Mount ext2fsfile.dat file as a loop device. 
-# Lets suppose that there are no already mounted loop device,
-# so it's ok to strat with zero
+# Lets suppose that there are no mounted loop devices yet,
+# so it's ok to start with zero
 mount ext2fsfile.dat /mnt/ext2fsfile -o loop=/dev/loop0
 
 # Ensure that /dev/loop0 device created and ext2fsfile.dat mounted to it
