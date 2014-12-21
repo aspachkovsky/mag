@@ -74,7 +74,7 @@ while read line ; do
         fi   
         [ $((counter%threads)) = 0 ] && wait
     fi
-done < $args_file
+done < "$args_file"
 [ "$threads" -ne "1" ] && [ $((counter%threads)) = 0 ] && wait
   
 
