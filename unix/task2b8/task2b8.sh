@@ -1,54 +1,27 @@
-#!/bin/bash
+#!/usr/bin/env dash
 
 updallfiles() {
-    cat /dev/null > $ALLFILES
-    for entry in * ; do
-        if [ -f "$entry" ] ; then echo "$entry" >> $ALLFILES ; fi
-    done
+    find . -maxdepth 1 -not -name ".*" -type f -print | colrm 1 2 > ".allfiles"  
 }
 
 updalldirs() {
-    cat /dev/null > $ALLDIRS
-    for entry in * ; do
-        if [ -d "$entry" ] ; then echo "$entry" >> $ALLDIRS ; fi
-    done
+    find . -maxdepth 1 -not -name ".*" -type d -print | colrm 1 2 > ".alldirs"  
 }
 
 where() {
-    getmatch() { start=$1 ; len=$2 ; }
-    if [ ! -e $ALLDIRS ] ; then 
-        echo "Information about directories has not been collected."
-        echo "Please run updalldirs command to update." ; exit 1
+    if [ ! -r ".alldirs" ] ; then 
+        echo "Information about directories has not been collected or cannot be accessed."
+        echo "Please run updalldirs command to update." 
+    else
+        grep --color=auto "$1" .alldirs
     fi
-
-    while read line ; do              
-        getmatch $(echo "$line" | awk 'match($0, /'$1'/) {print RSTART,RLENGTH}')
-        if [ ! -z $start ] && [ ! -z $len ] ; then       
-            echo "${line:0:$((start-1))}$(tput setaf 1)${line:$((start-1)):$len}$(tput sgr0)${line:$((start+len-1))}"
-        else
-            echo "$line"
-        fi 
-    done < ".alldirs"
 }
 
 wtf() {
-    getmatch() { start=$1 ; len=$2 ; }
-    if [ ! -e $ALLFILES ] ; then 
-        echo "Information about file has not been collected."
-        echo "Please run updallfiles command to update." ; exit 1
+    if [ ! -r ".allfiles" ] ; then 
+        echo "Information about file has not been collected or cannot be accessed."
+        echo "Please run updallfiles command to update."
+    else 
+        grep --color=auto "$1" .allfiles
     fi
- 
-    while read line ; do              
-        getmatch $(echo "$line" | awk 'match($0, /'$1'/) {print RSTART,RLENGTH}')
-        if [ ! -z $start ] && [ ! -z $len ] ; then       
-            echo "${line:0:$((start-1))}$(tput setaf 1)${line:$((start-1)):$len}$(tput sgr0)${line:$((start+len-1))}"
-        else
-            echo "$line"
-        fi 
-    done < ".allfiles"
 }
-
-export -f updallfiles
-export -f updalldirs
-export -f where
-export -f wtf

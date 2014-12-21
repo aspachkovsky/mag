@@ -1,4 +1,4 @@
-#!/bin/ash
+#!/usr/bin/env dash
 # Unix. A. Pachkovsky. Task 2, A12, map script
 
 usage() {
@@ -51,26 +51,32 @@ do
     esac
 done
 
-if [ $# = 0 ] ; then echo "Error: not enough arguments. A file name is expected." >&2 ; exit 1 ; fi
-if [ $# -gt 1 ] ; then echo "Error: too many arguments. A file name is expected." >&2 ; exit 1 ; fi
-if [ -e "$1" ] ; then args_file="$1" ; else echo "Error: file $1 does not exist" >&2 ; exit 1 ; fi             
-if [ -z "$command" ] ; then command="echo" ; fi
-if [ -z "$threads" ] ; then threads=1 ; fi
+[ $# = 0 ] && { echo "Error: not enough arguments. A file name is expected." >&2 ; exit 1 ; }
+[ $# -gt 1 ] && { echo "Error: too many arguments. A file name is expected." >&2 ; exit 1 ; }
+[ -r "$1" ] && args_file="$1" || { echo "Error: file $1 does not exist" >&2 ; exit 1 ; }             
+[ -z "$command" ] && command="echo"
+[ -z "$threads" ] && threads=1
 
 counter=0
 while read line ; do 
-    counter=$((counter+1))
-    if [ $((conter%threads)) = 0 ] ; then 
-        if [ "$input" = true ] ; then
-            $command < $line &
+    if [ "$threads" = "1" ] ; then
+        if [ "$input" = "true" ] ; then
+            echo "$line" | $command
+        else
+            $command $line
+        fi  
+    else
+        counter=$((counter+1))    
+        if [ "$input" = "true" ] ; then
+            echo "$line" | $command &
         else
             $command $line &
-        fi    
-    else 
-        wait
+        fi   
+        [ $((counter%threads)) = 0 ] && wait
     fi
 done < $args_file
-wait    
+[ "$threads" -ne "1" ] && [ $((counter%threads)) = 0 ] && wait
+  
 
 
 
