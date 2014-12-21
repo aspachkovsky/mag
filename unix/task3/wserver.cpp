@@ -1,165 +1,196 @@
-#include<stdio.h>
-#include<string.h>
-#include<stdlib.h>
-#include<unistd.h>
-#include<sys/types.h>
-#include<sys/stat.h>
-#include<sys/socket.h>
-#include<arpa/inet.h>
-#include<netdb.h>
-#include<signal.h>
-#include<fcntl.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <fcntl.h>
+#include <pthread.h>
+#include <sys/stat.h>
 
-#define MAX_CONN_AVAIBLE 1000
-#define BYTES 1024
+#define LISTEN_BACKLOG 10
+#define RECV_MSG_LENGTH 2048
+#define SEND_MSG_PORTION_LENGTH 2048
 
-char *root_dir;
-int connected_clients[MAX_CONN_AVAIBLE];
+const char* HTTP_RESP_STATUS_200 = "HTTP/1.0 200 OK\r\n";
+const char* HTTP_RESP_STATUS_400 = "HTTP/1.0 400 Bad Request\r\n";
+const char* HTTP_RESP_STATUS_404 = "HTTP/1.0 404 Not Found\r\n";
+const char* NOT_FOUND_MSG = "The resource you requested is not found.\r\n";
 
+const char* HTTP_METHOD_GET = "GET";
+const char* HTTP_VERSION = "HTTP/1.1";
+const char* HTTP_REQLINE_SP = " \t\n";
 
+const char* SERVER_DEFAULT_PORT = "8080";
 
-//client connection
-void respond(int n) {
-    char mesg[99999], *reqline[3], data_to_send[BYTES], path[99999];
-    int received, fd, bytes_read;
+struct consumer_arguments {
+    int client_socketd;
+    char* root_dir;
+};
 
-    memset((void*) mesg, (int) '\0', 99999);
-    received = recv(clients[n], mesg, 99999, 0);
-
-    if (received < 0) {     
-        fprintf(stderr,("recv() error\n"));
-    } else if (received == 0) {    
-        fprintf(stderr,"Client disconnected upexpectedly.\n");
-    } else {
-        printf("%s", mesg);
-        reqline[0] = strtok(mesg, " \t\n");
-        if ( strncmp(reqline[0], "GET\0", 4) == 0) {
-            reqline[1] = strtok(NULL, " \t");
-            reqline[2] = strtok(NULL, " \t\n");
-            if (strncmp(reqline[2], "HTTP/1.0", 8) != 0 && strncmp(reqline[2], "HTTP/1.1", 8) !=0) {
-                write(clients[n], "HTTP/1.0 400 Bad Request\n", 25);
-            } else {
-                if (strncmp(reqline[1], "/\0", 2) == 0) {
-                    reqline[1] = "/index.html";        //Because if no file is specified, index.html will be opened by default
-                }
-                strcpy(path, root_dir);
-                strcpy(&path[strlen(root_dir)], reqline[1]);
-                printf("file: %s\n", path);
-
-                if ( (fd=open(path, O_RDONLY))!=-1 ) {   //FILE FOUND
-                    send(clients[n], "HTTP/1.0 200 OK\n\n", 17, 0);
-                    while ((bytes_read=read(fd, data_to_send, BYTES)) > 0) {
-                        write(clients[n], data_to_send, bytes_read);
-                    }
-                } else {
-                   write(clients[n], "HTTP/1.0 404 Not Found\n", 23); //FILE NOT FOUND
-                }
-            }
-        }
-    }
-
-    //Closing SOCKET
-    shutdown (clients[n], SHUT_RDWR);         //All further send and recieve operations are DISABLED...
-    close(clients[n]);
-    clients[n]=-1;
-}
+void *consume_request(void*);
 
 int main(int argc, char* argv[]) {
-    // set default values for root directory and port
-    root_dir = getenv("PWD");
-    char PORT[6];
-    strcpy(PORT, "8080");
+    char* root_dir = getenv("PWD");
+    char port[6];
+    strcpy(port, SERVER_DEFAULT_PORT);
 
-    int slot = 0;
-
-    // parse command line arguments (root derectory and port)
     char option;
-    while ((option = getopt (argc, argv, "p:r:")) != -1)
+    while ((option = getopt(argc, argv, "p:r:")) != -1)
         switch (option) {
             case 'r':
-                root_dir = malloc(strlen(optarg));
-                strcpy(root_dir,optarg);
+                root_dir = (char*) malloc(strlen(optarg));
+                strcpy(root_dir, optarg);
                 break;
             case 'p':
-                strcpy(PORT,optarg);
+                strcpy(port, optarg);
                 break;
             case '?':
-                fprintf(stderr,"Wrong arguments given!!!\n");
+                perror("Wrong arguments given!!!");
                 exit(1);
             default:
                 exit(1);
         }
     
-    printf("Server started at port no. %s%s%s with root directory as %s%s%s\n","\033[92m",PORT,"\033[0m","\033[92m", root_dir, "\033[0m");
-
-    int i;
-    for (i = 0; i < MAX_CONN_AVAIBLE; i++) {
-        clients[i] = -1;
-    }
-    
-    struct addrinfo hints, *res, *p;
-
+    printf("Server: started at port %s with root directory %s\n", port, root_dir);
+   
+    struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_flags = AI_PASSIVE;
+    hints.ai_protocol = 0; 
     
-    // recieve avaible addrinfo structures for the loopback node (NULL)
-    int result = getaddrinfo(NULL, port, &hints, &res);
-    if (result != 0) {
-        perror("Error: getaddrinfo() error");
+    struct addrinfo *res;
+    if (getaddrinfo(NULL, port, &hints, &res) != 0) {
+        perror("Server error: getaddrinfo() error");
         exit(1);
     }
 
-    int socketd; // socket descriptor
-    // resolve and bind a socket
-    for (p = res; p != NULL; p = p->ai_next) {
-        socketd = socket(p->ai_family, p->ai_socktype, 0);
-        if (socketd == -1) {
+    int server_socketd; 
+    struct addrinfo *rp;
+    for (rp = res; rp != NULL; rp = rp->ai_next) {
+        server_socketd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+
+        if (server_socketd == -1) {
             continue;
         }
-        result = bind(socketd, p->ai_addr, p->ai_addrlen)
-        if (result == 0) { 
+
+        if (bind(server_socketd, rp->ai_addr, rp->ai_addrlen) == 0) { 
             break;
         }
+
+        close(server_socketd);
     }
 
-    if (p == NULL) {
-        perror ("socket() or bind()");
+    if (rp == NULL) {
+        perror("Server error: socket or bind call failed");
         exit(1);
     }
 
-    // an appropriate socket found, so free addrinfo struct 
     freeaddrinfo(res);
 
-    // listen for incoming connections
-    result = listen(socketd, 1000000);
-    if (result != 0) {
-        perror("Error: listen for incomming connection failed.");
+    if (listen(server_socketd, LISTEN_BACKLOG) != 0) {
+        perror("Server error: listen for incomming connection failed");
         exit(1);
     }
-
-    struct sockaddr_in clientaddr;
+    
     while (1) {
-        // accepting client connection
+        struct sockaddr_in clientaddr;
         socklen_t addrlen = sizeof(clientaddr);
-        clients[slot] = accept(socketd, (struct sockaddr *) &clientaddr, &addrlen);
+        int client_socketd = accept(server_socketd, (struct sockaddr*) &clientaddr, &addrlen);
 
-        if (clients[slot] < 0) {
-            error ("Error: failed to accept a connection.");
+        if (client_socketd < 0) {
+            perror("Server error: failed to accept a client connection");
         } else {
-            // fork a child process to respond on the request
-            if (fork() == 0) {
-                respond(slot);
-                exit(0);
-            }
-        }
+            printf("Server: got a connection from %s on port %d\n", 
+                inet_ntoa(clientaddr.sin_addr), htons(clientaddr.sin_port));
+            
+            struct consumer_arguments *arguments = (struct consumer_arguments*) 
+                malloc(sizeof(struct consumer_arguments));
+            arguments->client_socketd = client_socketd;
+            arguments->root_dir = (char*) malloc(strlen(root_dir) + 1);
+            strcpy(arguments->root_dir, root_dir);
 
-        while (clients[slot] != -1) { 
-            slot = (slot + 1) % MAX_CONN_AVAIBLE;
+            pthread_t consuming_thread;
+            if (pthread_create(&consuming_thread, NULL, consume_request, (void*) arguments) != 0) {
+                perror("Server error: failed to create a thread\n");
+            }    
         }
     }
 
     return 0;
+}
+
+void *consume_request(void* resp_arguments) {
+    struct consumer_arguments *arguments = (struct consumer_arguments*) resp_arguments;
+    char recv_msg[RECV_MSG_LENGTH];
+    memset((void*) recv_msg, (int) '\0', RECV_MSG_LENGTH);
+    int received = recv(arguments->client_socketd, recv_msg, RECV_MSG_LENGTH, 0);
+
+    if (received > 0) {
+        printf("Consumer: received request:\n%s", recv_msg);      
+        char* reqline_method = strtok(recv_msg, HTTP_REQLINE_SP);
+        if (strncmp(reqline_method, HTTP_METHOD_GET, strlen(HTTP_METHOD_GET)) == 0) {
+
+            char* reqline_uri = strtok(0, HTTP_REQLINE_SP);
+            char* reqline_http_version = strtok(0, HTTP_REQLINE_SP);
+
+            if (strncmp(reqline_http_version, HTTP_VERSION, strlen(HTTP_VERSION)) == 0) {
+                char path[RECV_MSG_LENGTH];
+                strcpy(path, arguments->root_dir);
+                strcat(path, reqline_uri);
+                printf("Consumer: requested file: %s\n", path);
+		
+                int fd = -1;
+                struct stat filestat;
+                if (access(path, R_OK) != -1) {                     
+                    if (stat(path, &filestat) == 0) {
+                        if (S_ISREG(filestat.st_mode)) {
+                            fd = open(path, O_RDONLY);
+                        } else {
+                            printf("Consumer: requested resource is not regular file: %s, sending 404\n", path);
+                        }                           
+                    } else {
+                        perror("Consumer: stat() call failed for the requested file");
+                    }
+                } else {
+                     printf("Consumer: requested resource not found: %s, sending 404\n", path);
+                }                
+
+                if (fd != -1) {
+                    printf("Consumer: transmitting requested file content: %s, sending 200\n", path);
+                    write(arguments->client_socketd, HTTP_RESP_STATUS_200, strlen(HTTP_RESP_STATUS_200));
+
+                    off_t filesize = filestat.st_size;
+                    char content_length_header[40];
+                    sprintf(content_length_header, "Content-Lenght: %ld\r\n", filestat.st_size);                   
+		            write(arguments->client_socketd, content_length_header, strlen(content_length_header));
+
+                    char send_msg[SEND_MSG_PORTION_LENGTH];
+                    int bytes_read;
+                    while ((bytes_read = read(fd, send_msg, SEND_MSG_PORTION_LENGTH)) > 0) {
+                        write(arguments->client_socketd, send_msg, bytes_read);
+                    }
+                    close(fd);
+                } else {
+                    write(arguments->client_socketd, HTTP_RESP_STATUS_404, strlen(HTTP_RESP_STATUS_404));
+                    write(arguments->client_socketd, "\r\n", 2);
+                    write(arguments->client_socketd, NOT_FOUND_MSG, strlen(NOT_FOUND_MSG));
+                }
+            } else {
+                write(arguments->client_socketd, HTTP_RESP_STATUS_400, strlen(HTTP_RESP_STATUS_400));
+                printf("Consumer: wrong HTTP version: %s, sending 400\n", reqline_http_version);
+            }
+        }
+    } else {
+        perror("Consumer error: failed to receive request message");
+    }
+
+    close(arguments->client_socketd);
+
+    free(arguments->root_dir);
+    free(arguments);
 }
 
