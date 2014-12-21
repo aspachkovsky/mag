@@ -31,13 +31,21 @@ struct consumer_arguments {
 
 void *consume_request(void*);
 
+void usage() {
+    printf("Simple web server. Task 3.\n");
+    printf("Usage: wserver [-h] [-r rootdir] [-p port]\n");
+    printf(" -r rootdir Server fs root, current working directory by default.\n");    
+    printf(" -p port    Server port, 8080 by default.\n");    
+    printf(" -h         Prints this message.\n");    
+}
+
 int main(int argc, char* argv[]) {
     char* root_dir = getenv("PWD");
     char port[6];
     strcpy(port, SERVER_DEFAULT_PORT);
 
     char option;
-    while ((option = getopt(argc, argv, "p:r:")) != -1)
+    while ((option = getopt(argc, argv, "hp:r:")) != -1)
         switch (option) {
             case 'r':
                 root_dir = (char*) malloc(strlen(optarg));
@@ -46,8 +54,11 @@ int main(int argc, char* argv[]) {
             case 'p':
                 strcpy(port, optarg);
                 break;
+            case 'h':
+                usage();
+                exit(0);
             case '?':
-                perror("Wrong arguments given!!!");
+                perror("Client: invalid argument");
                 exit(1);
             default:
                 exit(1);
@@ -161,19 +172,22 @@ void *consume_request(void* resp_arguments) {
 
                 if (fd != -1) {
                     printf("Consumer: transmitting requested file content: %s, sending 200\n", path);
-                    write(arguments->client_socketd, HTTP_RESP_STATUS_200, strlen(HTTP_RESP_STATUS_200));
+                    int bytes_sent = 0;                    
+                    bytes_sent += write(arguments->client_socketd, HTTP_RESP_STATUS_200, strlen(HTTP_RESP_STATUS_200));
 
                     off_t filesize = filestat.st_size;
                     char content_length_header[40];
-                    sprintf(content_length_header, "Content-Lenght: %ld\r\n", filestat.st_size);                   
-		            write(arguments->client_socketd, content_length_header, strlen(content_length_header));
+                    
+                    sprintf(content_length_header, "Content-Lenght: %ld\r\n\r\n", filestat.st_size);                   
+		            bytes_sent += write(arguments->client_socketd, content_length_header, strlen(content_length_header));
 
                     char send_msg[SEND_MSG_PORTION_LENGTH];
                     int bytes_read;
                     while ((bytes_read = read(fd, send_msg, SEND_MSG_PORTION_LENGTH)) > 0) {
-                        write(arguments->client_socketd, send_msg, bytes_read);
+                        bytes_sent += write(arguments->client_socketd, send_msg, bytes_read);
                     }
                     close(fd);
+                    printf("Bytes sent: %d\n", bytes_sent);
                 } else {
                     write(arguments->client_socketd, HTTP_RESP_STATUS_404, strlen(HTTP_RESP_STATUS_404));
                     write(arguments->client_socketd, "\r\n", 2);
@@ -188,6 +202,7 @@ void *consume_request(void* resp_arguments) {
         perror("Consumer error: failed to receive request message");
     }
 
+    shutdown(arguments->client_socketd, SHUT_WR);
     close(arguments->client_socketd);
 
     free(arguments->root_dir);
