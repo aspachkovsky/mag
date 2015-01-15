@@ -36,7 +36,17 @@ static struct linear_buffer_t* get_linear_buffer() {
 
     if (memory_linear_buffer == NULL) {
         memory_linear_buffer = real_malloc(sizeof(struct linear_buffer_t*));
+        if (memory_linear_buffer == NULL) {
+            fprintf(stderr, "Failed to malloc linear buffer.");
+            exit(1);
+        }
+
         memory_linear_buffer->ptr = real_malloc(BASE_SIZE);
+        if (memory_linear_buffer->ptr == NULL) {
+            fprintf(stderr, "Failed to malloc linear buffer.");
+            exit(1);
+        }
+
         memory_linear_buffer->size = BASE_SIZE;
         memory_linear_buffer->allocated = 0;
     } 
@@ -52,6 +62,11 @@ static void expand_linear_buffer(size_t size) {
         linear_buffer->ptr, linear_buffer->size, linear_buffer->allocated);
 
     linear_buffer->ptr = real_realloc(linear_buffer->ptr, linear_buffer->size + expand_size);
+    if (linear_buffer->ptr == NULL) {
+        fprintf(stderr, "Failed to realloc linear buffer.");
+        exit(1);
+    }
+
     linear_buffer->size += size;
 
     printf("new = (base pointer = %p, size = %zu, allocated = %zu)\n", 
