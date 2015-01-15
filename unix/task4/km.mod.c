@@ -29,11 +29,12 @@ __attribute__((section("__versions"))) = {
 	{ 0x9f14c292, __VMLINUX_SYMBOL_STR(mutex_unlock) },
 	{ 0x4f6b400b, __VMLINUX_SYMBOL_STR(_copy_from_user) },
 	{ 0x78193dce, __VMLINUX_SYMBOL_STR(mutex_lock_interruptible) },
-	{ 0xe2d5255a, __VMLINUX_SYMBOL_STR(strcmp) },
+	{ 0x69acdf38, __VMLINUX_SYMBOL_STR(memcpy) },
 	{ 0x9d442502, __VMLINUX_SYMBOL_STR(__mutex_init) },
 	{ 0xd2b09ce5, __VMLINUX_SYMBOL_STR(__kmalloc) },
 	{ 0xb153f6c5, __VMLINUX_SYMBOL_STR(kmem_cache_alloc_trace) },
 	{ 0x2b056eed, __VMLINUX_SYMBOL_STR(kmalloc_caches) },
+	{ 0xe2d5255a, __VMLINUX_SYMBOL_STR(strcmp) },
 	{ 0x27e1a049, __VMLINUX_SYMBOL_STR(printk) },
 	{ 0x37a0cba, __VMLINUX_SYMBOL_STR(kfree) },
 	{ 0xbdfb6dbb, __VMLINUX_SYMBOL_STR(__fentry__) },
@@ -45,4 +46,4 @@ __attribute__((section(".modinfo"))) =
 "depends=";
 
 
-MODULE_INFO(srcversion, "F61567D0BE2D5B93F640044");
+MODULE_INFO(srcversion, "1FC85378A40500BDA189EBC");

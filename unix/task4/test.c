@@ -6,67 +6,45 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-
-/*
-struct storage {
-	char** strings;
-	unsigned int length;
-};	
-
-#define DIM 10
-
-void add_to_storage(struct storage* st, char* str) {
-
-	char* in = str;
-
-	int i = 0;
-	for (; i < st->length; i++) {
-		if (strcmp(in, st->strings[i]) < 0) {
-			char* temp = st->strings[i];
-			st->strings[i] = in;
-			in = temp;
-		}
-	}
-
-	if (st->length < DIM) {
-		st->strings[st->length++] = in;
-	}
+void usage(void) {
+	printf("Usage: test [-c strings_count] [-s string_size] strings... \n");
+	printf("-c    strings_count  the number of strings to be read (10 by default), optional.\n");
+	printf("-s    string_size    a size of a string in bytes (256 by default), optional.\n");
+	printf("-h    prints this message.\n");
 }
-*/
-int main(int argc, char** argv) {
-	
-	int fd = open("/dev/lexsorter", O_RDWR);
 
-	printf("%d\n", argc);
-	int i = 1;
-	for (; i < argc; i++) {
+int main(int argc, char** argv) {
+	int i, fd, strings_count = 10, string_size = 256;
+
+	char option;
+    while ((option = getopt(argc, argv, "hc:s:")) != -1) {
+        switch (option) {
+            case 'c':
+                strings_count = atoi(optarg);
+                break;
+            case 's':
+                string_size = atoi(optarg);
+                break;
+            case 'h':
+                usage();
+                exit(0);
+            case '?':
+                printf("Error: invalid argument");
+                exit(1);
+            default:
+                exit(1);
+        }
+    }
+
+	fd = open("/dev/lexsorter", O_RDWR);
+	for (i = optind; i < argc; i++) {
 		write(fd, argv[i], strlen(argv[i]));	
 	}
 	
-	char* k = (char*) malloc(256);
-	int a = read(fd, k, 256);
-	printf("Read:%d\n%s\n--END--\n", a, k);
-	
-/*
-	struct storage* sp = NULL;
-	sp = (struct storage*) malloc(sizeof(*sp));
-	sp->length = 0;
-	sp->strings = (char**) malloc(DIM * sizeof(char*));
-
-	add_to_storage(sp, "bbb");
-	add_to_storage(sp, "ccc");
-	add_to_storage(sp, "aaa");
-	add_to_storage(sp, "ddd");
-
-	int i = 0;
-	for (; i < sp->length; i++){
-        printf("%d - %s\n", i+1, sp->strings[i]);
-    }
-*/
-
-
-	
-
+	char* strings = (char*) malloc(10 * 256 * sizeof(char));
+	int bytes_read = read(fd, strings, 256);
+	printf("Bytes read:%d\nStrings:\n%s\n--END--\n", bytes_read, strings);
+	free(strings);
 }
 
 
