@@ -198,7 +198,7 @@ int read_from_storage(struct storage *st, char **pstr) {
                 strcat(result, str);
             }
         }
-        
+
         if (i < strings_count - 1) {
             strcat(result, separator);            
         }
@@ -257,7 +257,7 @@ static ssize_t lexsorter_read(struct file *file, char __user *out, size_t size, 
         goto out_unlock;
     }
 
-    printk(KERN_INFO "strings (size = %zu) red from lexsorter device:\n%s\n", size, str);
+    printk(KERN_INFO "strings (size = %zu) read from lexsorter device:\n%s\n", size, str);
     result = size;
 
     out_unlock:
